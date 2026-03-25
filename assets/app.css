@@ -1,5 +1,7 @@
 /* Tailwind CSS v4 — one import handles everything */
 @import "tailwindcss";
 
-/* DaisyUI v5 plugin */
-@plugin "daisyui";
+/* DaisyUI v5 — only light and dark themes bundled (smaller CSS output) */
+@plugin "daisyui" {
+  themes: all;
+}
