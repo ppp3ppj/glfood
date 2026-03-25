@@ -9,11 +9,10 @@
 //   - element.map converts a child Element(ChildMsg) → Element(Msg)
 
 import components/counter
+import components/layouts/root
 import components/theme_picker
 import lustre
-import lustre/attribute
 import lustre/element
-import lustre/element/html
 
 // --- MODEL ---
 // Holds one sub-model per component.
@@ -48,29 +47,10 @@ fn update(model: Model, msg: Msg) -> Model {
 // Compose component views with element.map to lift their Msg into root Msg.
 
 fn view(model: Model) -> element.Element(Msg) {
-  html.div(
-    [
-      attribute.class("min-h-screen bg-base-200 flex flex-col"),
-      attribute.attribute("data-theme", theme_picker.current(model.theme)),
-    ],
-    [
-      // Navbar — theme picker pinned to the right
-      html.header([attribute.class("navbar bg-base-100 shadow-sm px-4")], [
-        html.div([attribute.class("flex-1")], []),
-        html.div([attribute.class("flex-none")], [
-          element.map(theme_picker.view(model.theme), ThemeMsg),
-        ]),
-      ]),
-      // Main content — centered, fills remaining height
-      html.main(
-        [
-          attribute.class(
-            "flex flex-1 flex-col items-center justify-center gap-6 p-4",
-          ),
-        ],
-        [element.map(counter.view(model.counter), CounterMsg)],
-      ),
-    ],
+  root.render(
+    theme: theme_picker.current(model.theme),
+    navbar: [element.map(theme_picker.view(model.theme), ThemeMsg)],
+    content: [element.map(counter.view(model.counter), CounterMsg)],
   )
 }
 
