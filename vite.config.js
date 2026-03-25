@@ -1,7 +1,12 @@
 import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  // Serve index.html from project root
+  plugins: [
+    // Tailwind v4 Vite plugin — faster than PostCSS, no config file needed
+    tailwindcss(),
+  ],
+
   root: ".",
 
   server: {
@@ -10,7 +15,6 @@ export default defineConfig({
   },
 
   build: {
-    // Output to dist/ for production
     outDir: "dist",
   },
 });
