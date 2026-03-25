@@ -1,4 +1,11 @@
+# Gleam
 *.beam
 *.ez
 /build
 erl_crash.dump
+
+# Node / Bun
+node_modules/
+
+# Vite production build
+dist/
