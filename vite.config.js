@@ -7,6 +7,8 @@ export default defineConfig({
     tailwindcss(),
   ],
 
+  // SPA mode: serve index.html for all routes (needed for History API routing)
+  appType: "spa",
   root: ".",
 
   server: {
