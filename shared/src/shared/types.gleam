@@ -8,11 +8,11 @@ import gleam/json
 // --- AUTH TYPES ---
 
 pub type RegisterRequest {
-  RegisterRequest(email: String, password: String)
+  RegisterRequest(username: String, password: String)
 }
 
 pub type LoginRequest {
-  LoginRequest(email: String, password: String)
+  LoginRequest(username: String, password: String)
 }
 
 pub type AuthResponse {
@@ -31,14 +31,14 @@ pub fn encode_auth_response(r: AuthResponse) -> json.Json {
 
 pub fn encode_login_request(r: LoginRequest) -> json.Json {
   json.object([
-    #("email", json.string(r.email)),
+    #("username", json.string(r.username)),
     #("password", json.string(r.password)),
   ])
 }
 
 pub fn encode_register_request(r: RegisterRequest) -> json.Json {
   json.object([
-    #("email", json.string(r.email)),
+    #("username", json.string(r.username)),
     #("password", json.string(r.password)),
   ])
 }
@@ -65,9 +65,9 @@ pub fn decode_register_request(
   data: dynamic.Dynamic,
 ) -> Result(RegisterRequest, List(decode.DecodeError)) {
   let decoder = {
-    use email <- decode.field("email", decode.string)
+    use username <- decode.field("username", decode.string)
     use password <- decode.field("password", decode.string)
-    decode.success(RegisterRequest(email: email, password: password))
+    decode.success(RegisterRequest(username: username, password: password))
   }
   decode.run(data, decoder)
 }
@@ -76,9 +76,9 @@ pub fn decode_login_request(
   data: dynamic.Dynamic,
 ) -> Result(LoginRequest, List(decode.DecodeError)) {
   let decoder = {
-    use email <- decode.field("email", decode.string)
+    use username <- decode.field("username", decode.string)
     use password <- decode.field("password", decode.string)
-    decode.success(LoginRequest(email: email, password: password))
+    decode.success(LoginRequest(username: username, password: password))
   }
   decode.run(data, decoder)
 }

@@ -3,38 +3,38 @@ import gleam/result
 import sqlight
 
 pub type User {
-  User(id: Int, email: String, password: String)
+  User(id: Int, username: String, password: String)
 }
 
 fn decoder() -> decode.Decoder(User) {
   use id <- decode.field(0, decode.int)
-  use email <- decode.field(1, decode.string)
+  use username <- decode.field(1, decode.string)
   use password <- decode.field(2, decode.string)
-  decode.success(User(id: id, email: email, password: password))
+  decode.success(User(id: id, username: username, password: password))
 }
 
 pub fn insert(
   conn: sqlight.Connection,
-  email: String,
+  username: String,
   hashed: String,
 ) -> Result(Nil, sqlight.Error) {
   sqlight.query(
-    "INSERT INTO users (email, password) VALUES (?, ?)",
+    "INSERT INTO users (username, password) VALUES (?, ?)",
     conn,
-    [sqlight.text(email), sqlight.text(hashed)],
+    [sqlight.text(username), sqlight.text(hashed)],
     decode.success(Nil),
   )
   |> result.map(fn(_) { Nil })
 }
 
-pub fn find_by_email(
+pub fn find_by_username(
   conn: sqlight.Connection,
-  email: String,
+  username: String,
 ) -> Result(List(User), sqlight.Error) {
   sqlight.query(
-    "SELECT id, email, password FROM users WHERE email = ?",
+    "SELECT id, username, password FROM users WHERE username = ?",
     conn,
-    [sqlight.text(email)],
+    [sqlight.text(username)],
     decoder(),
   )
 }

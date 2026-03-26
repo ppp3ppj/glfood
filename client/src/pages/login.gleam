@@ -11,17 +11,17 @@ import shared/types as shared
 // --- MODEL ---
 
 pub type Model {
-  Model(email: String, password: String, error: String, loading: Bool)
+  Model(username: String, password: String, error: String, loading: Bool)
 }
 
 pub fn init() -> Model {
-  Model(email: "", password: "", error: "", loading: False)
+  Model(username: "", password: "", error: "", loading: False)
 }
 
 // --- MSG ---
 
 pub type Msg {
-  SetEmail(String)
+  SetUsername(String)
   SetPassword(String)
   Submit
   GotToken(Result(shared.AuthResponse, rsvp.Error))
@@ -31,7 +31,7 @@ pub type Msg {
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
-    SetEmail(v) -> #(Model(..model, email: v), effect.none())
+    SetUsername(v) -> #(Model(..model, username: v), effect.none())
     SetPassword(v) -> #(Model(..model, password: v), effect.none())
 
     Submit ->
@@ -40,7 +40,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         rsvp.post(
           "http://localhost:4000/api/auth/login",
           shared.encode_login_request(
-            shared.LoginRequest(email: model.email, password: model.password),
+            shared.LoginRequest(username: model.username, password: model.password),
           ),
           rsvp.expect_json(shared.auth_response_decoder(), GotToken),
         ),
@@ -57,7 +57,7 @@ fn error_message(err: rsvp.Error) -> String {
   case err {
     rsvp.HttpError(resp) ->
       case resp.status {
-        401 -> "Invalid email or password"
+        401 -> "Invalid username or password"
         _ -> "Request failed"
       }
     rsvp.NetworkError -> "Network error"
@@ -89,14 +89,14 @@ pub fn view(model: Model) -> Element(Msg) {
             },
             html.label([attribute.class("form-control w-full")], [
               html.div([attribute.class("label")], [
-                html.span([attribute.class("label-text")], [html.text("Email")]),
+                html.span([attribute.class("label-text")], [html.text("Username")]),
               ]),
               html.input([
-                attribute.type_("email"),
+                attribute.type_("text"),
                 attribute.class("input input-bordered w-full"),
-                attribute.placeholder("you@example.com"),
-                attribute.value(model.email),
-                event.on_input(SetEmail),
+                attribute.placeholder("your_username"),
+                attribute.value(model.username),
+                event.on_input(SetUsername),
               ]),
             ]),
             html.label([attribute.class("form-control w-full")], [

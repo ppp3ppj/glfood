@@ -19,8 +19,8 @@ pub fn register(req: Request, conn: sqlight.Connection) -> Response {
     Error(_) -> wisp.bad_request("Invalid request body")
     Ok(data) -> {
       let hashed = hash_password(data.password)
-      case user_queries.insert(conn, data.email, hashed) {
-        Error(_) -> json_response(409, types.encode_error(types.ApiError("email already taken")))
+      case user_queries.insert(conn, data.username, hashed) {
+        Error(_) -> json_response(409, types.encode_error(types.ApiError("username already taken")))
         Ok(_) -> json_response(201, json.object([#("ok", json.bool(True))]))
       }
     }
@@ -32,7 +32,7 @@ pub fn login(req: Request, conn: sqlight.Connection) -> Response {
   case types.decode_login_request(body) {
     Error(_) -> wisp.bad_request("Invalid request body")
     Ok(data) -> {
-      case user_queries.find_by_email(conn, data.email) {
+      case user_queries.find_by_username(conn, data.username) {
         Ok([user, ..]) ->
           case verify_password(data.password, user.password) {
             True -> {
