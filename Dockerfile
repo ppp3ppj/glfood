@@ -29,7 +29,7 @@ RUN gleam export erlang-shipment
 # ---- Runtime stage ----
 FROM alpine:3.23
 
-RUN apk add --no-cache erlang libgcc libstdc++ ncurses-libs sqlite-libs
+RUN apk add --no-cache erlang erlang-crypto erlang-ssl erlang-public-key libgcc libstdc++ ncurses-libs sqlite-libs
 
 WORKDIR /app
 COPY --from=builder /build/server/build/erlang-shipment .
