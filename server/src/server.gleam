@@ -21,7 +21,10 @@ pub fn main() {
   let assert Ok(conn) = db.connect()
   let assert Ok(_) = db.migrate(conn)
 
-  let handler = fn(req) { router.handle(req, conn) }
+  let assert Ok(priv_dir) = wisp.priv_directory("server")
+  let static_dir = priv_dir <> "/static"
+
+  let handler = fn(req) { router.handle(req, conn, static_dir) }
 
   let assert Ok(_) =
     wisp_mist.handler(handler, "secret_key_base_change_in_prod")

@@ -3,31 +3,61 @@
 import controllers/auth
 import gleam/http
 import gleam/json
+import simplifile
 import sqlight
 import wisp.{type Request, type Response}
 
-pub fn handle(req: Request, conn: sqlight.Connection) -> Response {
-  use <- wisp.log_request(req)
+pub fn handle(
+  req: Request,
+  conn: sqlight.Connection,
+  static_dir: String,
+) -> Response {
+  use req <- app_middleware(req, static_dir)
 
-  // Handle CORS preflight
-  case req.method {
-    http.Options ->
+  let resp = case req.method, wisp.path_segments(req) {
+    // CORS preflight
+    http.Options, _ ->
       wisp.ok()
-      |> wisp.set_header("access-control-allow-origin", "*")
       |> wisp.set_header("access-control-allow-methods", "GET, POST, DELETE, OPTIONS")
       |> wisp.set_header("access-control-allow-headers", "content-type, authorization")
-    _ -> {
-      let resp = case wisp.path_segments(req) {
-        ["health"] -> health_check()
-        ["api", "health"] -> health_check()
-        ["api", "auth", "me"]       -> auth.me(req, conn)
-        ["api", "auth", "register"] -> auth.register(req, conn)
-        ["api", "auth", "login"]    -> auth.login(req, conn)
-        ["api", "auth", "logout"]   -> auth.logout(req, conn)
-        _ -> wisp.not_found()
-      }
-      wisp.set_header(resp, "access-control-allow-origin", "*")
-    }
+
+    _, ["health"]       -> health_check()
+    _, ["api", "health"] -> health_check()
+
+    http.Get,    ["api", "auth", "me"]       -> auth.me(req, conn)
+    http.Post,   ["api", "auth", "register"] -> auth.register(req, conn)
+    http.Post,   ["api", "auth", "login"]    -> auth.login(req, conn)
+    http.Delete, ["api", "auth", "logout"]   -> auth.logout(req, conn)
+
+    // SPA fallback — serve index.html for all unknown GET routes
+    // so the Lustre/modem client-side router handles navigation
+    http.Get, _ -> serve_spa(static_dir)
+
+    _, _ -> wisp.not_found()
+  }
+
+  // Allow cross-origin requests (needed for local dev on port 3000)
+  wisp.set_header(resp, "access-control-allow-origin", "*")
+}
+
+fn app_middleware(
+  req: Request,
+  static_dir: String,
+  next: fn(Request) -> Response,
+) -> Response {
+  let req = wisp.method_override(req)
+  use <- wisp.log_request(req)
+  use <- wisp.rescue_crashes
+  use req <- wisp.handle_head(req)
+  // Serve Vite-built assets (JS chunks, CSS, images) from priv/static
+  use <- wisp.serve_static(req, under: "/", from: static_dir)
+  next(req)
+}
+
+fn serve_spa(static_dir: String) -> Response {
+  case simplifile.read(static_dir <> "/index.html") {
+    Ok(html) -> wisp.html_response(html, 200)
+    Error(_) -> wisp.not_found()
   }
 }
 
