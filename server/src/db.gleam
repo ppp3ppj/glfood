@@ -9,7 +9,12 @@ import sqlight
 
 const db_path = "app.db"
 
-const migrations_dir = "migrations"
+@external(erlang, "db_ffi", "priv_dir")
+fn priv_dir() -> String
+
+fn migrations_dir() -> String {
+  priv_dir() <> "/migrations"
+}
 
 pub fn connect() -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(db_path))
@@ -30,12 +35,13 @@ pub fn migrate(conn: sqlight.Connection) -> Result(Nil, String) {
 }
 
 fn run_pending(conn: sqlight.Connection) -> Result(Nil, String) {
-  case simplifile.read_directory(migrations_dir) {
+  let dir = migrations_dir()
+  case simplifile.read_directory(dir) {
     Error(e) -> Error("Cannot read migrations/: " <> string.inspect(e))
     Ok(files) -> {
       files
       |> list_sql_files
-      |> run_each(conn)
+      |> run_each(conn, dir)
       Ok(Nil)
     }
   }
@@ -59,7 +65,6 @@ fn list_filter_sql(files: List(String)) -> List(String) {
 }
 
 fn list_sort(files: List(String)) -> List(String) {
-  // Simple insertion sort — migration list is always tiny
   case files {
     [] -> []
     [first, ..rest] -> insert_sorted(first, list_sort(rest))
@@ -77,17 +82,17 @@ fn insert_sorted(x: String, sorted: List(String)) -> List(String) {
   }
 }
 
-fn run_each(files: List(String), conn: sqlight.Connection) -> Nil {
+fn run_each(files: List(String), conn: sqlight.Connection, dir: String) -> Nil {
   case files {
     [] -> Nil
     [file, ..rest] -> {
-      run_one(conn, file)
-      run_each(rest, conn)
+      run_one(conn, dir, file)
+      run_each(rest, conn, dir)
     }
   }
 }
 
-fn run_one(conn: sqlight.Connection, file: String) -> Nil {
+fn run_one(conn: sqlight.Connection, dir: String, file: String) -> Nil {
   let version = string.drop_end(file, 4)
   let already =
     sqlight.query(
@@ -99,7 +104,7 @@ fn run_one(conn: sqlight.Connection, file: String) -> Nil {
   case already {
     Ok([_, ..]) -> Nil
     _ -> {
-      let path = migrations_dir <> "/" <> file
+      let path = dir <> "/" <> file
       let assert Ok(sql) = simplifile.read(path)
       let assert Ok(_) = sqlight.exec(sql, conn)
       let assert Ok(_) =
