@@ -1,5 +1,6 @@
 // router.gleam — like router.ex in Phoenix
 
+import controllers/admin
 import controllers/auth
 import gleam/http
 import gleam/json
@@ -28,6 +29,9 @@ pub fn handle(
     http.Post,   ["api", "auth", "register"] -> auth.register(req, conn)
     http.Post,   ["api", "auth", "login"]    -> auth.login(req, conn)
     http.Delete, ["api", "auth", "logout"]   -> auth.logout(req, conn)
+
+    // Admin routes
+    http.Get, ["api", "admin", "dashboard"] -> admin.dashboard(req, conn)
 
     // SPA fallback — serve index.html for all unknown GET routes
     // so the Lustre/modem client-side router handles navigation

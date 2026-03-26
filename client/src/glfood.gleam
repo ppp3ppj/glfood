@@ -3,6 +3,7 @@
 import components/counter
 import components/layouts/root
 import components/theme_picker
+import gleam/dynamic/decode
 import gleam/http/request
 import gleam/option.{type Option}
 import lustre
@@ -11,12 +12,14 @@ import lustre/effect.{type Effect}
 import lustre/element
 import lustre/element/html
 import lustre/event
-import rsvp
+import pages/admin as admin_page
 import pages/counter_page
 import pages/home
 import pages/login as login_page
 import pages/register as register_page
 import router.{type Route}
+import rsvp
+import shared/types as shared
 
 // --- STORAGE FFI (localStorage — no Gleam package for this) ---
 
@@ -46,36 +49,45 @@ type Model {
     login: login_page.Model,
     register: register_page.Model,
     token: Option(String),
+    role: Option(shared.Role),
   )
 }
 
 fn init(_flags) -> #(Model, Effect(Msg)) {
   let stored = load_token()
+  let initial_route = router.current()
   let model =
     Model(
-      route: router.current(),
+      route: initial_route,
       theme: theme_picker.init(),
       counter: counter.init(),
       login: login_page.init(),
       register: register_page.init(),
       token: stored,
+      role: option.None,
     )
   let verify_effect = case stored {
-    option.None -> effect.none()
+    // No token at all — if landing on /admin, kick to login immediately
+    option.None ->
+      case initial_route {
+        router.Admin -> router.push(router.Login)
+        _ -> effect.none()
+      }
+    // Token present — verify it and recover the role
     option.Some(t) -> verify_token(t)
   }
   #(model, effect.batch([router.init(RouteChanged), verify_effect]))
 }
 
+// Calls /api/auth/me and decodes the role from the response.
 fn verify_token(token: String) -> Effect(Msg) {
   let assert Ok(req) = request.to("http://localhost:4000/api/auth/me")
   let req = request.set_header(req, "authorization", "Bearer " <> token)
-  rsvp.send(req, rsvp.expect_ok_response(fn(result) {
-    case result {
-      Ok(_) -> TokenVerified(True)
-      Error(_) -> TokenVerified(False)
-    }
-  }))
+  let role_decoder = {
+    use role <- decode.field("role", shared.decode_role())
+    decode.success(role)
+  }
+  rsvp.send(req, rsvp.expect_json(role_decoder, TokenVerified))
 }
 
 // --- MSG ---
@@ -87,7 +99,7 @@ pub type Msg {
   CounterMsg(counter.Msg)
   LoginMsg(login_page.Msg)
   RegisterMsg(register_page.Msg)
-  TokenVerified(Bool)
+  TokenVerified(Result(shared.Role, rsvp.Error))
   Logout
 }
 
@@ -95,6 +107,14 @@ pub type Msg {
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
+    // Guard /admin: only allow if role is already known to be Admin
+    RouteChanged(router.Admin) ->
+      case model.role {
+        option.Some(shared.Admin) ->
+          #(Model(..model, route: router.Admin), effect.none())
+        _ -> #(model, router.push(router.Login))
+      }
+
     RouteChanged(route) -> #(Model(..model, route: route), effect.none())
 
     NavigateTo(route) -> #(model, router.push(route))
@@ -111,10 +131,15 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         effect.none(),
       )
 
-    // Login succeeded — persist token and go home
+    // Login succeeded — persist token and role, then go home
     LoginMsg(login_page.GotToken(Ok(auth))) ->
       #(
-        Model(..model, token: option.Some(auth.token), login: login_page.init()),
+        Model(
+          ..model,
+          token: option.Some(auth.token),
+          role: option.Some(auth.role),
+          login: login_page.init(),
+        ),
         effect.batch([
           router.push(router.Home),
           effect.from(fn(_) { save_token_ffi(auth.token) }),
@@ -138,11 +163,21 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       #(Model(..model, register: register), effect.map(eff, RegisterMsg))
     }
 
-    // Stored token check on startup
-    TokenVerified(True) -> #(model, effect.none())
-    TokenVerified(False) ->
+    // Token verified on startup — recover role from /api/auth/me
+    TokenVerified(Ok(role)) -> {
+      let model = Model(..model, role: option.Some(role))
+      // If the user landed directly on /admin but role isn't Admin, redirect
+      case model.route, role {
+        router.Admin, shared.Admin -> #(model, effect.none())
+        router.Admin, _ -> #(model, router.push(router.Login))
+        _, _ -> #(model, effect.none())
+      }
+    }
+
+    // Token invalid or expired — clear session and go to login
+    TokenVerified(Error(_)) ->
       #(
-        Model(..model, token: option.None),
+        Model(..model, token: option.None, role: option.None),
         effect.batch([
           router.push(router.Login),
           effect.from(fn(_) { clear_token_ffi() }),
@@ -151,7 +186,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     Logout ->
       #(
-        Model(..model, token: option.None),
+        Model(..model, token: option.None, role: option.None),
         effect.batch([
           router.push(router.Home),
           effect.from(fn(_) { clear_token_ffi() }),
@@ -165,7 +200,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 fn view(model: Model) -> element.Element(Msg) {
   root.render(
     theme: theme_picker.current(model.theme),
-    nav_left: [nav_links(model.route, model.token)],
+    nav_left: [nav_links(model.route, model.token, model.role)],
     nav_right: [element.map(theme_picker.view(model.theme), ThemeMsg)],
     content: [page_content(model)],
   )
@@ -179,13 +214,22 @@ fn page_content(model: Model) -> element.Element(Msg) {
     router.Login -> element.map(login_page.view(model.login), LoginMsg)
     router.Register ->
       element.map(register_page.view(model.register), RegisterMsg)
+    router.Admin -> admin_page.view()
   }
 }
 
-fn nav_links(current: Route, token: Option(String)) -> element.Element(Msg) {
+fn nav_links(
+  current: Route,
+  token: Option(String),
+  role: Option(shared.Role),
+) -> element.Element(Msg) {
   html.nav([attribute.class("flex items-center gap-1")], [
     nav_link("Home", router.Home, current),
     nav_link("Counter", router.Counter, current),
+    case role {
+      option.Some(shared.Admin) -> nav_link("Admin", router.Admin, current)
+      _ -> element.none()
+    },
     case token {
       option.None -> nav_link("Login", router.Login, current)
       option.Some(_) ->

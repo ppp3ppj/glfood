@@ -14,6 +14,7 @@ pub type Route {
   Counter
   Login
   Register
+  Admin
 }
 
 // --- PARSE ---
@@ -24,6 +25,7 @@ pub fn parse(uri: Uri) -> Route {
     "/counter" -> Counter
     "/login" -> Login
     "/register" -> Register
+    "/admin" -> Admin
     _ -> Home
   }
 }
@@ -37,6 +39,7 @@ pub fn to_path(route: Route) -> String {
     Counter -> "/counter"
     Login -> "/login"
     Register -> "/register"
+    Admin -> "/admin"
   }
 }
 

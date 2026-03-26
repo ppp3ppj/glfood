@@ -5,6 +5,29 @@ import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
 
+// --- ROLE ---
+
+pub type Role {
+  Admin
+  User
+}
+
+pub fn encode_role(role: Role) -> json.Json {
+  case role {
+    Admin -> json.string("admin")
+    User -> json.string("user")
+  }
+}
+
+pub fn decode_role() -> decode.Decoder(Role) {
+  use s <- decode.then(decode.string)
+  case s {
+    "admin" -> decode.success(Admin)
+    "user" -> decode.success(User)
+    _ -> decode.failure(User, "Role")
+  }
+}
+
 // --- AUTH TYPES ---
 
 pub type RegisterRequest {
@@ -16,7 +39,7 @@ pub type LoginRequest {
 }
 
 pub type AuthResponse {
-  AuthResponse(token: String)
+  AuthResponse(token: String, role: Role)
 }
 
 pub type ApiError {
@@ -26,7 +49,7 @@ pub type ApiError {
 // --- ENCODERS (server → client, client → server) ---
 
 pub fn encode_auth_response(r: AuthResponse) -> json.Json {
-  json.object([#("token", json.string(r.token))])
+  json.object([#("token", json.string(r.token)), #("role", encode_role(r.role))])
 }
 
 pub fn encode_login_request(r: LoginRequest) -> json.Json {
@@ -47,7 +70,8 @@ pub fn encode_register_request(r: RegisterRequest) -> json.Json {
 
 pub fn auth_response_decoder() -> decode.Decoder(AuthResponse) {
   use token <- decode.field("token", decode.string)
-  decode.success(AuthResponse(token: token))
+  use role <- decode.field("role", decode_role())
+  decode.success(AuthResponse(token: token, role: role))
 }
 
 pub fn api_error_decoder() -> decode.Decoder(ApiError) {

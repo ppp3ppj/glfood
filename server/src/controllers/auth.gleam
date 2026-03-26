@@ -2,7 +2,10 @@
 // POST /api/auth/register
 // POST /api/auth/login
 // DELETE /api/auth/logout
+// GET  /api/auth/me
 
+import authorization/middleware
+import authorization/policy
 import gleam/crypto
 import gleam/http/request
 import gleam/json
@@ -20,7 +23,8 @@ pub fn register(req: Request, conn: sqlight.Connection) -> Response {
     Ok(data) -> {
       let hashed = hash_password(data.password)
       case user_queries.insert(conn, data.username, hashed) {
-        Error(_) -> json_response(409, types.encode_error(types.ApiError("username already taken")))
+        Error(_) ->
+          json_response(409, types.encode_error(types.ApiError("username already taken")))
         Ok(_) -> json_response(201, json.object([#("ok", json.bool(True))]))
       }
     }
@@ -38,29 +42,44 @@ pub fn login(req: Request, conn: sqlight.Connection) -> Response {
             True -> {
               let token = random_token()
               case session_queries.insert(conn, token, user.id) {
-                Ok(_) -> json_response(200, types.encode_auth_response(types.AuthResponse(token)))
+                Ok(_) ->
+                  json_response(
+                    200,
+                    types.encode_auth_response(types.AuthResponse(
+                      token: token,
+                      role: role_to_shared(user.role),
+                    )),
+                  )
                 Error(_) -> wisp.internal_server_error()
               }
             }
-            False -> json_response(401, types.encode_error(types.ApiError("invalid credentials")))
+            False ->
+              json_response(
+                401,
+                types.encode_error(types.ApiError("invalid credentials")),
+              )
           }
-        _ -> json_response(401, types.encode_error(types.ApiError("invalid credentials")))
+        _ ->
+          json_response(
+            401,
+            types.encode_error(types.ApiError("invalid credentials")),
+          )
       }
     }
   }
 }
 
+/// Returns the current user's identity and role.
 pub fn me(req: Request, conn: sqlight.Connection) -> Response {
-  case request.get_header(req, "authorization") {
-    Error(_) -> json_response(401, types.encode_error(types.ApiError("missing token")))
-    Ok(header) -> {
-      let token = string.replace(header, "Bearer ", "")
-      case session_queries.find(conn, token) {
-        Ok([_, ..]) -> json_response(200, json.object([#("ok", json.bool(True))]))
-        _ -> json_response(401, types.encode_error(types.ApiError("expired or invalid token")))
-      }
-    }
-  }
+  use actor <- middleware.require_auth(req, conn)
+  json_response(
+    200,
+    json.object([
+      #("id", json.int(actor.id)),
+      #("username", json.string(actor.username)),
+      #("role", policy.encode_role(actor.role)),
+    ]),
+  )
 }
 
 pub fn logout(req: Request, conn: sqlight.Connection) -> Response {
@@ -77,6 +96,13 @@ pub fn logout(req: Request, conn: sqlight.Connection) -> Response {
 }
 
 // --- helpers ---
+
+fn role_to_shared(role: policy.Role) -> types.Role {
+  case role {
+    policy.Admin -> types.Admin
+    policy.User -> types.User
+  }
+}
 
 fn json_response(status: Int, body: json.Json) -> Response {
   wisp.response(status)
