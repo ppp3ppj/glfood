@@ -20,6 +20,7 @@ pub fn main() {
   let assert Ok(_) =
     wisp_mist.handler(handler, "secret_key_base_change_in_prod")
     |> mist.new
+    |> mist.bind("0.0.0.0")
     |> mist.port(4000)
     |> mist.start
 

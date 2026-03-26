@@ -20,6 +20,13 @@ pub fn view() -> Element(msg) {
           ],
           [html.text("Get Started →")],
         ),
+        html.a(
+          [
+            attribute.href("/login"),
+            attribute.class("btn btn-outline btn-wide"),
+          ],
+          [html.text("Sign in")],
+        ),
       ]),
     ]),
   ])

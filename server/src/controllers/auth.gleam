@@ -79,8 +79,8 @@ fn random_token() -> String {
 @external(erlang, "binary", "encode_hex")
 fn bit_array_to_hex(bytes: BitArray) -> String
 
-@external(erlang, "Elixir.Argon2", "hash_pwd_salt")
+@external(erlang, "password_ffi", "hash")
 fn hash_password(password: String) -> String
 
-@external(erlang, "Elixir.Argon2", "verify_pass")
+@external(erlang, "password_ffi", "verify")
 fn verify_password(password: String, hash: String) -> Bool

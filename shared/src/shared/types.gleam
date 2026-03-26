@@ -23,10 +23,31 @@ pub type ApiError {
   ApiError(message: String)
 }
 
-// --- ENCODERS (server → client) ---
+// --- ENCODERS (server → client, client → server) ---
 
 pub fn encode_auth_response(r: AuthResponse) -> json.Json {
   json.object([#("token", json.string(r.token))])
+}
+
+pub fn encode_login_request(r: LoginRequest) -> json.Json {
+  json.object([
+    #("email", json.string(r.email)),
+    #("password", json.string(r.password)),
+  ])
+}
+
+pub fn encode_register_request(r: RegisterRequest) -> json.Json {
+  json.object([
+    #("email", json.string(r.email)),
+    #("password", json.string(r.password)),
+  ])
+}
+
+// --- CLIENT-SIDE DECODER ---
+
+pub fn auth_response_decoder() -> decode.Decoder(AuthResponse) {
+  use token <- decode.field("token", decode.string)
+  decode.success(AuthResponse(token: token))
 }
 
 pub fn encode_error(e: ApiError) -> json.Json {
