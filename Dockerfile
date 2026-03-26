@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM ghcr.io/gleam-lang/gleam:v1.12.0-erlang-alpine AS builder
+FROM ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine AS builder
 
 # Install Node.js + Bun for the Vite client build
 RUN apk add --no-cache nodejs npm curl bash

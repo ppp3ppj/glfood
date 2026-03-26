@@ -29,7 +29,7 @@ glfood/
 
 ### Requirements
 
-- [Gleam](https://gleam.run/getting-started/installing/) >= 1.0
+- [Gleam](https://gleam.run/getting-started/installing/) >= 1.14
 - [Erlang/OTP](https://www.erlang.org/downloads) >= 26
 - [Bun](https://bun.sh) (for the client Vite build)
 
