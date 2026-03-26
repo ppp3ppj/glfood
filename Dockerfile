@@ -2,7 +2,8 @@
 FROM ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine AS builder
 
 # Install Node.js + Bun for the Vite client build
-RUN apk add --no-cache nodejs npm curl bash
+# gcc/g++/musl-dev/make are required to compile the esqlite NIF (used by sqlight)
+RUN apk add --no-cache nodejs npm curl bash gcc g++ musl-dev make sqlite-dev
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
 
@@ -28,7 +29,7 @@ RUN gleam export erlang-shipment
 # ---- Runtime stage ----
 FROM alpine:3.23
 
-RUN apk add --no-cache libgcc libstdc++ ncurses-libs
+RUN apk add --no-cache libgcc libstdc++ ncurses-libs sqlite-libs
 
 WORKDIR /app
 COPY --from=builder /build/server/build/erlang-shipment .
