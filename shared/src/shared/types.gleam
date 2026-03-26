@@ -50,6 +50,11 @@ pub fn auth_response_decoder() -> decode.Decoder(AuthResponse) {
   decode.success(AuthResponse(token: token))
 }
 
+pub fn api_error_decoder() -> decode.Decoder(ApiError) {
+  use message <- decode.field("error", decode.string)
+  decode.success(ApiError(message: message))
+}
+
 pub fn encode_error(e: ApiError) -> json.Json {
   json.object([#("error", json.string(e.message))])
 }

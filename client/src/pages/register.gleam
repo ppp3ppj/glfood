@@ -1,24 +1,13 @@
 // pages/register.gleam
 
-import gleam/dynamic
-import gleam/dynamic/decode
-import gleam/json
+import gleam/http/response
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rsvp
 import shared/types as shared
-
-// --- FFI ---
-
-@external(javascript, "./login_ffi.mjs", "post_json")
-fn post_json_ffi(
-  url: String,
-  body: String,
-  on_ok: fn(dynamic.Dynamic) -> Nil,
-  on_err: fn(String) -> Nil,
-) -> Nil
 
 // --- MODEL ---
 
@@ -33,13 +22,7 @@ pub type Model {
 }
 
 pub fn init() -> Model {
-  Model(
-    email: "",
-    password: "",
-    confirm_password: "",
-    error: "",
-    loading: False,
-  )
+  Model(email: "", password: "", confirm_password: "", error: "", loading: False)
 }
 
 // --- MSG ---
@@ -49,7 +32,7 @@ pub type Msg {
   SetPassword(String)
   SetConfirmPassword(String)
   Submit
-  GotResult(Result(Nil, String))
+  GotResult(Result(response.Response(String), rsvp.Error))
 }
 
 // --- UPDATE ---
@@ -60,36 +43,42 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     SetPassword(v) -> #(Model(..model, password: v), effect.none())
     SetConfirmPassword(v) -> #(Model(..model, confirm_password: v), effect.none())
 
-    Submit -> {
+    Submit ->
       case model.password == model.confirm_password {
         False ->
+          #(Model(..model, error: "Passwords do not match"), effect.none())
+        True ->
           #(
-            Model(..model, error: "Passwords do not match"),
-            effect.none(),
+            Model(..model, loading: True, error: ""),
+            rsvp.post(
+              "http://localhost:4000/api/auth/register",
+              shared.encode_register_request(
+                shared.RegisterRequest(
+                  email: model.email,
+                  password: model.password,
+                ),
+              ),
+              rsvp.expect_ok_response(GotResult),
+            ),
           )
-        True -> {
-          let body =
-            json.to_string(shared.encode_register_request(
-              shared.RegisterRequest(email: model.email, password: model.password),
-            ))
-          let req =
-            effect.from(fn(dispatch) {
-              post_json_ffi(
-                "http://localhost:4000/api/auth/register",
-                body,
-                fn(_data) { dispatch(GotResult(Ok(Nil))) },
-                fn(err) { dispatch(GotResult(Error(err))) },
-              )
-            })
-          #(Model(..model, loading: True, error: ""), req)
-        }
       }
-    }
 
     GotResult(Ok(_)) -> #(model, effect.none())
 
-    GotResult(Error(msg)) ->
-      #(Model(..model, loading: False, error: msg), effect.none())
+    GotResult(Error(err)) ->
+      #(Model(..model, loading: False, error: error_message(err)), effect.none())
+  }
+}
+
+fn error_message(err: rsvp.Error) -> String {
+  case err {
+    rsvp.HttpError(resp) ->
+      case resp.status {
+        409 -> "Email already taken"
+        _ -> "Request failed"
+      }
+    rsvp.NetworkError -> "Network error"
+    _ -> "Request failed"
   }
 }
 

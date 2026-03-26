@@ -20,6 +20,7 @@ pub fn handle(req: Request, conn: sqlight.Connection) -> Response {
       let resp = case wisp.path_segments(req) {
         ["health"] -> health_check()
         ["api", "health"] -> health_check()
+        ["api", "auth", "me"]       -> auth.me(req, conn)
         ["api", "auth", "register"] -> auth.register(req, conn)
         ["api", "auth", "login"]    -> auth.login(req, conn)
         ["api", "auth", "logout"]   -> auth.logout(req, conn)

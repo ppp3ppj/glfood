@@ -50,6 +50,19 @@ pub fn login(req: Request, conn: sqlight.Connection) -> Response {
   }
 }
 
+pub fn me(req: Request, conn: sqlight.Connection) -> Response {
+  case request.get_header(req, "authorization") {
+    Error(_) -> json_response(401, types.encode_error(types.ApiError("missing token")))
+    Ok(header) -> {
+      let token = string.replace(header, "Bearer ", "")
+      case session_queries.find(conn, token) {
+        Ok([_, ..]) -> json_response(200, json.object([#("ok", json.bool(True))]))
+        _ -> json_response(401, types.encode_error(types.ApiError("expired or invalid token")))
+      }
+    }
+  }
+}
+
 pub fn logout(req: Request, conn: sqlight.Connection) -> Response {
   case request.get_header(req, "authorization") {
     Error(_) -> wisp.bad_request("Invalid request body")

@@ -1,24 +1,12 @@
 // pages/login.gleam
 
-import gleam/dynamic
-import gleam/dynamic/decode
-import gleam/json
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import rsvp
 import shared/types as shared
-
-// --- FFI ---
-
-@external(javascript, "./login_ffi.mjs", "post_json")
-fn post_json_ffi(
-  url: String,
-  body: String,
-  on_ok: fn(dynamic.Dynamic) -> Nil,
-  on_err: fn(String) -> Nil,
-) -> Nil
 
 // --- MODEL ---
 
@@ -36,7 +24,7 @@ pub type Msg {
   SetEmail(String)
   SetPassword(String)
   Submit
-  GotToken(Result(shared.AuthResponse, String))
+  GotToken(Result(shared.AuthResponse, rsvp.Error))
 }
 
 // --- UPDATE ---
@@ -46,32 +34,34 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     SetEmail(v) -> #(Model(..model, email: v), effect.none())
     SetPassword(v) -> #(Model(..model, password: v), effect.none())
 
-    Submit -> {
-      let body =
-        json.to_string(shared.encode_login_request(
-          shared.LoginRequest(email: model.email, password: model.password),
-        ))
-      let req =
-        effect.from(fn(dispatch) {
-          post_json_ffi(
-            "http://localhost:4000/api/auth/login",
-            body,
-            fn(data) {
-              case decode.run(data, shared.auth_response_decoder()) {
-                Ok(auth) -> dispatch(GotToken(Ok(auth)))
-                Error(_) -> dispatch(GotToken(Error("Unexpected response")))
-              }
-            },
-            fn(err) { dispatch(GotToken(Error(err))) },
-          )
-        })
-      #(Model(..model, loading: True, error: ""), req)
-    }
+    Submit ->
+      #(
+        Model(..model, loading: True, error: ""),
+        rsvp.post(
+          "http://localhost:4000/api/auth/login",
+          shared.encode_login_request(
+            shared.LoginRequest(email: model.email, password: model.password),
+          ),
+          rsvp.expect_json(shared.auth_response_decoder(), GotToken),
+        ),
+      )
 
     GotToken(Ok(_)) -> #(model, effect.none())
 
-    GotToken(Error(msg)) ->
-      #(Model(..model, loading: False, error: msg), effect.none())
+    GotToken(Error(err)) ->
+      #(Model(..model, loading: False, error: error_message(err)), effect.none())
+  }
+}
+
+fn error_message(err: rsvp.Error) -> String {
+  case err {
+    rsvp.HttpError(resp) ->
+      case resp.status {
+        401 -> "Invalid email or password"
+        _ -> "Request failed"
+      }
+    rsvp.NetworkError -> "Network error"
+    _ -> "Request failed"
   }
 }
 

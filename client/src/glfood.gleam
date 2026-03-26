@@ -3,6 +3,7 @@
 import components/counter
 import components/layouts/root
 import components/theme_picker
+import gleam/http/request
 import gleam/option.{type Option}
 import lustre
 import lustre/attribute
@@ -10,13 +11,14 @@ import lustre/effect.{type Effect}
 import lustre/element
 import lustre/element/html
 import lustre/event
+import rsvp
 import pages/counter_page
 import pages/home
 import pages/login as login_page
 import pages/register as register_page
 import router.{type Route}
 
-// --- STORAGE FFI ---
+// --- STORAGE FFI (localStorage — no Gleam package for this) ---
 
 @external(javascript, "./storage_ffi.mjs", "load_token")
 fn load_token_ffi() -> String
@@ -48,6 +50,7 @@ type Model {
 }
 
 fn init(_flags) -> #(Model, Effect(Msg)) {
+  let stored = load_token()
   let model =
     Model(
       route: router.current(),
@@ -55,9 +58,24 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       counter: counter.init(),
       login: login_page.init(),
       register: register_page.init(),
-      token: load_token(),
+      token: stored,
     )
-  #(model, router.init(RouteChanged))
+  let verify_effect = case stored {
+    option.None -> effect.none()
+    option.Some(t) -> verify_token(t)
+  }
+  #(model, effect.batch([router.init(RouteChanged), verify_effect]))
+}
+
+fn verify_token(token: String) -> Effect(Msg) {
+  let assert Ok(req) = request.to("http://localhost:4000/api/auth/me")
+  let req = request.set_header(req, "authorization", "Bearer " <> token)
+  rsvp.send(req, rsvp.expect_ok_response(fn(result) {
+    case result {
+      Ok(_) -> TokenVerified(True)
+      Error(_) -> TokenVerified(False)
+    }
+  }))
 }
 
 // --- MSG ---
@@ -69,6 +87,7 @@ pub type Msg {
   CounterMsg(counter.Msg)
   LoginMsg(login_page.Msg)
   RegisterMsg(register_page.Msg)
+  TokenVerified(Bool)
   Logout
 }
 
@@ -92,13 +111,41 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         effect.none(),
       )
 
-    // Login succeeded — store token in model + localStorage then go home
+    // Login succeeded — persist token and go home
     LoginMsg(login_page.GotToken(Ok(auth))) ->
       #(
         Model(..model, token: option.Some(auth.token), login: login_page.init()),
         effect.batch([
           router.push(router.Home),
           effect.from(fn(_) { save_token_ffi(auth.token) }),
+        ]),
+      )
+
+    LoginMsg(m) -> {
+      let #(login, eff) = login_page.update(model.login, m)
+      #(Model(..model, login: login), effect.map(eff, LoginMsg))
+    }
+
+    // Register succeeded — go to login
+    RegisterMsg(register_page.GotResult(Ok(_response))) ->
+      #(
+        Model(..model, register: register_page.init()),
+        router.push(router.Login),
+      )
+
+    RegisterMsg(m) -> {
+      let #(register, eff) = register_page.update(model.register, m)
+      #(Model(..model, register: register), effect.map(eff, RegisterMsg))
+    }
+
+    // Stored token check on startup
+    TokenVerified(True) -> #(model, effect.none())
+    TokenVerified(False) ->
+      #(
+        Model(..model, token: option.None),
+        effect.batch([
+          router.push(router.Login),
+          effect.from(fn(_) { clear_token_ffi() }),
         ]),
       )
 
@@ -110,23 +157,6 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           effect.from(fn(_) { clear_token_ffi() }),
         ]),
       )
-
-    LoginMsg(m) -> {
-      let #(login, eff) = login_page.update(model.login, m)
-      #(Model(..model, login: login), effect.map(eff, LoginMsg))
-    }
-
-    // Register succeeded — go to login
-    RegisterMsg(register_page.GotResult(Ok(_))) ->
-      #(
-        Model(..model, register: register_page.init()),
-        router.push(router.Login),
-      )
-
-    RegisterMsg(m) -> {
-      let #(register, eff) = register_page.update(model.register, m)
-      #(Model(..model, register: register), effect.map(eff, RegisterMsg))
-    }
   }
 }
 
