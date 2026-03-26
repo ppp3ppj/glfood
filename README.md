@@ -102,6 +102,11 @@ Run the production build:
 docker build -t glfood .
 ```
 
+### Build the image without caching (larger but ensures all steps are fresh)
+```bash
+docker build --no-cache -t glfood .
+```
+
 ### Run the container
 
 ```bash
