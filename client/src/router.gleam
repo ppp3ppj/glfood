@@ -12,6 +12,8 @@ import modem
 pub type Route {
   Home
   Counter
+  Login
+  Register
 }
 
 // --- PARSE ---
@@ -20,6 +22,8 @@ pub type Route {
 pub fn parse(uri: Uri) -> Route {
   case uri.path {
     "/counter" -> Counter
+    "/login" -> Login
+    "/register" -> Register
     _ -> Home
   }
 }
@@ -31,6 +35,8 @@ pub fn to_path(route: Route) -> String {
   case route {
     Home -> "/"
     Counter -> "/counter"
+    Login -> "/login"
+    Register -> "/register"
   }
 }
 

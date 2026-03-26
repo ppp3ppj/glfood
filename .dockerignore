@@ -1,0 +1,15 @@
+# Build artifacts
+**/build/
+client/dist/
+client/node_modules/
+
+# Test files — not needed in production build
+client/test/
+server/test/
+shared/test/
+
+# Dev data
+*.db
+*.db-shm
+*.db-wal
+server/priv/static/
