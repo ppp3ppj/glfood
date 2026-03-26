@@ -19,6 +19,12 @@ fn migrations_dir() -> String {
 pub fn connect() -> Result(sqlight.Connection, sqlight.Error) {
   use conn <- result.try(sqlight.open(db_path))
   use _ <- result.try(sqlight.exec("PRAGMA foreign_keys = ON", conn))
+  // WAL mode: allows external tools (DB Browser, sqlite3 CLI) to read the
+  // database while the server is running without getting "database is locked".
+  use _ <- result.try(sqlight.exec("PRAGMA journal_mode = WAL", conn))
+  // Wait up to 5 seconds before returning SQLITE_BUSY instead of failing
+  // immediately when another process holds a write lock.
+  use _ <- result.try(sqlight.exec("PRAGMA busy_timeout = 5000", conn))
   Ok(conn)
 }
 
