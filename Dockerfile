@@ -26,7 +26,7 @@ RUN gleam deps download
 RUN gleam export erlang-shipment
 
 # ---- Runtime stage ----
-FROM alpine:3.19
+FROM alpine:3.23
 
 RUN apk add --no-cache libgcc libstdc++ ncurses-libs
 
